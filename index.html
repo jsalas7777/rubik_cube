@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rubik's Cube</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>Rubik's Cube</h1>
+      <div class="info">
+        <span id="status" data-state="solved">Solved</span>
+        <span id="moves">0 moves</span>
+      </div>
+    </header>
+
+    <canvas id="scene"></canvas>
+
+    <footer>
+      <div class="moves">
+        <button data-move="U">U</button>
+        <button data-move="D">D</button>
+        <button data-move="L">L</button>
+        <button data-move="R">R</button>
+        <button data-move="F">F</button>
+        <button data-move="B">B</button>
+        <button data-move="U'">U'</button>
+        <button data-move="D'">D'</button>
+        <button data-move="L'">L'</button>
+        <button data-move="R'">R'</button>
+        <button data-move="F'">F'</button>
+        <button data-move="B'">B'</button>
+      </div>
+      <div class="actions">
+        <button id="scramble" class="primary">Scramble</button>
+        <button id="undo">Undo</button>
+        <button id="reset">Reset</button>
+      </div>
+      <div class="actions">
+        <button id="solve" class="primary">Solve with AI</button>
+        <label>
+          Search width
+          <select id="beam">
+            <option value="100">100 (fast)</option>
+            <option value="1000" selected>1000</option>
+            <option value="3000">3000 (shorter solutions)</option>
+          </select>
+        </label>
+      </div>
+      <p id="solution"></p>
+      <p class="hint">
+        Drag to look around · keys <kbd>U</kbd> <kbd>D</kbd> <kbd>L</kbd> <kbd>R</kbd>
+        <kbd>F</kbd> <kbd>B</kbd> turn faces, add <kbd>Shift</kbd> for counter-clockwise ·
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo
+      </p>
+    </footer>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
