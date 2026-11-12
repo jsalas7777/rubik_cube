@@ -3,13 +3,14 @@
 Every step draws a new batch from data.generate_batch, so the network never sees the same
 data twice and there is no dataset file to outgrow.
 
+Each checkpoint is also written to model/ for the web page, so refreshing the page picks up
+the latest model while training runs.
+
     python train.py --steps 20000
 """
 
 import argparse
-import math
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -17,9 +18,8 @@ from torch import nn
 from tqdm import tqdm
 
 from data import SCRAMBLE_DEPTH, generate_batch
-from model import PolicyNet, load, one_hot
-
-CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
+from export import OUTPUT_DIR, export_for_web
+from model import CHECKPOINT_DIR, PolicyNet, load, one_hot
 
 
 def pick_device(name):
@@ -30,14 +30,6 @@ def pick_device(name):
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
-
-
-def learning_rate(step, args):
-    """Linear warmup, then cosine decay to 10% of the peak by the final step."""
-    if step <= args.warmup:
-        return args.lr * step / args.warmup
-    progress = min(1.0, (step - args.warmup) / max(1, args.steps - args.warmup))
-    return args.lr * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * progress)))
 
 
 def save(path, model, optimizer, step):
@@ -51,12 +43,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=20_000)
     parser.add_argument("--batch-scrambles", type=int, default=160, help=f"scrambles per batch (x{SCRAMBLE_DEPTH} samples)")
-    parser.add_argument("--dim", type=int, default=128, help="transformer embedding width")
-    parser.add_argument("--layers", type=int, default=4, help="transformer blocks")
-    parser.add_argument("--heads", type=int, default=4, help="attention heads per block")
-    parser.add_argument("--lr", type=float, default=5e-4, help="peak learning rate")
-    parser.add_argument("--warmup", type=int, default=1000, help="steps of linear learning-rate warmup")
-    parser.add_argument("--weight-decay", type=float, default=0.01)
+    parser.add_argument("--hidden", type=int, default=512)
+    parser.add_argument("--blocks", type=int, default=3)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda or mps")
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--save-every", type=int, default=1000)
@@ -74,11 +63,11 @@ def main():
         model.train()
         start_step = checkpoint["step"]
     else:
-        model, checkpoint = PolicyNet(args.dim, args.layers, args.heads), None
+        model, checkpoint = PolicyNet(args.hidden, args.blocks), None
         start_step = 0
     device = pick_device(args.device)
     model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     if checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
 
@@ -101,13 +90,10 @@ def main():
         states, labels = generate_batch(args.batch_scrambles, rng)
         x, y = one_hot(states).to(device), torch.from_numpy(labels).to(device)
 
-        for group in optimizer.param_groups:
-            group["lr"] = learning_rate(step, args)
         logits = model(x)
         loss = loss_fn(logits, y)
         optimizer.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         total_loss += loss.item() * len(y)
@@ -121,11 +107,15 @@ def main():
             elapsed = time.time() - started
             progress.write(
                 f"step {step:>6}  loss {total_loss / total_samples:.4f}  "
-                f"acc {total_correct / total_samples:.3f}  lr {learning_rate(step, args):.1e}  {elapsed / 60:.1f} min"
+                f"acc {total_correct / total_samples:.3f}  {elapsed / 60:.1f} min"
             )
             total_loss = total_correct = total_samples = 0
         if step % args.save_every == 0 or step == args.steps:
             save(latest, model, optimizer, step)
+            try:
+                export_for_web(model, step)
+            except Exception as error:  # A failed export shouldn't stop a long training run.
+                progress.write(f"step {step:>6}  could not update {OUTPUT_DIR}: {error}")
     progress.close()
 
 

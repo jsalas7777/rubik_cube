@@ -12,8 +12,7 @@ import torch
 
 from cube_env import INVERSE, MOVES, NUM_MOVES, SOLVED, apply_moves, apply_sequence, is_solved
 from data import DATA_DIR
-from model import load, one_hot
-from train import CHECKPOINT_DIR
+from model import CHECKPOINT_DIR, load, one_hot
 
 
 @torch.no_grad()

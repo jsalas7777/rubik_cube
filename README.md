@@ -39,7 +39,7 @@ Moves use standard [Singmaster notation](https://en.wikipedia.org/wiki/Rubik%27s
 **Solve with AI** uses a neural network trained in [`training/`](training/). The approach follows [EfficientCube (Takano, 2023)](https://arxiv.org/abs/2106.03157).
 
 1. **Training data.** Start from a solved cube and make random moves. Each position is labelled with the move that undoes the last turn, so no human data or existing solver is needed ([`data.py`](training/data.py)).
-2. **Model.** The network is a transformer that treats each of the 54 stickers as a token. A token's embedding is its color plus a learned embedding for its slot on the cube, so attention can learn which stickers share a cubie or turn together. A `[CLS]` token reads the whole cube, and its output predicts which of the 12 moves heads back toward solved. The default is 4 pre-norm blocks, width 128, 4 heads, about 0.8M parameters ([`model.py`](training/model.py), [`train.py`](training/train.py)). It trains with AdamW, a learning-rate warmup and cosine decay. Every batch is freshly generated, so it never sees the same data twice.
+2. **Model.** The network reads the 54 sticker colors, one-hot encoded as 324 inputs. It is a 512-wide input layer plus 3 residual blocks, about 1.8M parameters, and it predicts which of the 12 moves heads back toward solved ([`model.py`](training/model.py), [`train.py`](training/train.py)). Every batch is freshly generated, so it never sees the same data twice.
 3. **Search.** Beam search keeps the most likely move sequences according to the network, extending them one move at a time until one reaches solved ([`search.py`](training/search.py) in Python, [`src/solver.js`](src/solver.js) in the browser). A wider search finds shorter solutions but takes longer.
 
 The page runs the exported model in the browser with [onnxruntime-web](https://onnxruntime.ai/docs/tutorials/web/). No server is needed.
@@ -52,12 +52,13 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 .venv/bin/python data.py                  # sample dataset + fixed test scrambles in data/
-.venv/bin/python train.py --steps 20000   # uses CUDA or Apple MPS if available; --resume continues a run
+.venv/bin/python train.py --steps 20000   # ~15 min; uses CUDA or Apple MPS if available; --resume continues a run
 .venv/bin/python search.py --beam 1000    # solve rate and solution length on the test scrambles
-.venv/bin/python export.py                # writes model/solver.onnx + model/solver.json for the page
 ```
 
-[`cube_env.py`](training/cube_env.py) is a NumPy cube simulator that uses the same geometry and move directions as [`src/cube.js`](src/cube.js). `export.py` writes the sticker order and move tables into `solver.json`, so the page and the model always agree on the cube layout. The model still takes the 324-value one-hot input (6 colors × 54 stickers), so the exported ONNX file plugs into the page unchanged.
+Every checkpoint `train.py` saves (every 1000 steps and at the end) is also written to `model/solver.onnx` and `model/solver.json`, so refreshing the page picks up the latest model, even while training is still running. `export.py --checkpoint <file>` writes a specific checkpoint instead.
+
+[`cube_env.py`](training/cube_env.py) is a NumPy cube simulator that uses the same geometry and move directions as [`src/cube.js`](src/cube.js). `export.py` writes the sticker order and move tables into `solver.json`, so the page and the model always agree on the cube layout.
 
 ## Ideas for next steps
 
