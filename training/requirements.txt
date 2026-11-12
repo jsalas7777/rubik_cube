@@ -3,3 +3,4 @@ torch==2.14.1
 numpy==2.5.4
 onnx==1.23.2
 onnxscript==0.7.2
+tqdm==4.70.1
